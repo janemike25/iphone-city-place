@@ -1,0 +1,46 @@
+IPHONE CITY — FIREBASE READY PACKAGE
+
+This package is already connected to:
+Project ID: iphone-city-place-792b2
+
+FILES INCLUDED
+- index.html
+- firestore.rules
+- firebase.json
+- .firebaserc
+- README.txt
+
+IMPORTANT
+I cannot press Publish or Deploy inside your private Firebase account from here.
+You must perform the final deployment while signed in to your Firebase account.
+
+EASIEST PHONE METHOD — FIREBASE CONSOLE RULES
+1. Open Firebase Console.
+2. Open your project.
+3. Open Firestore Database.
+4. Tap Rules.
+5. Copy everything from firestore.rules.
+6. Replace the existing rules.
+7. Tap Publish.
+
+FOR HOSTING
+Firebase Hosting deployment normally uses Firebase CLI.
+On a phone, the simplest method is usually:
+- upload this ZIP to GitHub
+- connect GitHub to Vercel or Netlify
+- deploy the site
+- then add the deployed domain in:
+  Firebase Console > Authentication > Settings > Authorized domains
+
+REAL ACCOUNT FEATURES INCLUDED
+- registration
+- login/logout
+- password reset
+- profile
+- cloud cart
+- address book
+- user orders
+
+PAYMENT NOTICE
+M-Pesa and card pages are not real payment gateways yet.
+Real M-Pesa requires Safaricom Daraja and a secure backend server.
