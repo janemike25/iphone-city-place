@@ -2034,15 +2034,12 @@ body.dark .feature-content p{
   <div class="app-header"><button class="app-back" data-app-back>←</button><h2>Admin Dashboard</h2><span></span></div>
   <div class="app-content">
     <div class="admin-card">
-      <div class="demo-note" id="adminStatus">Secure admin tools. Products added here are saved in Firestore and appear for every customer.</div>
+      <div class="demo-note">Demo admin tools. Changes affect this open page only unless saved in the browser.</div>
       <h3>Add Product</h3>
       <div class="field"><label>Product name</label><input id="adminName" placeholder="Example: iPhone 16 Pro"></div>
       <div class="field"><label>Price (KSh)</label><input id="adminPrice" type="number" placeholder="150000"></div>
-      <div class="field"><label>Image URL</label><input id="adminImage" placeholder="https://example.com/iphone.jpg"></div>
-      <div class="field"><label>Description</label><textarea id="adminDescription" placeholder="Product description"></textarea></div>
-      <div class="field"><label>Storage</label><input id="adminStorage" placeholder="128GB"></div>
-      <div class="field"><label>Stock quantity</label><input id="adminStock" type="number" min="0" value="1"></div>
-      <button class="primary-btn" id="adminAdd">Save Product to Store</button>
+      <div class="field"><label>Image URL</label><input id="adminImage" placeholder="Optional image URL"></div>
+      <button class="primary-btn" id="adminAdd">Add Product</button>
     </div>
     <div class="admin-card">
       <h3>Manage Products</h3>
@@ -2099,11 +2096,9 @@ firebase.initializeApp(firebaseConfig);
 const firebaseAuth = firebase.auth();
 const firebaseDb = firebase.firestore();
 
-const ADMIN_EMAIL="mikemonda222@gmail.com";
-const PRODUCTS_COLLECTION="storeProducts";
-let cloudProductsLoaded=false;
-function isAdminUser(user=firebaseAuth.currentUser){
-  return !!user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase();
+const ADMIN_EMAIL = "mikemonda222@gmail.com";
+function isAdminUser(user = firebaseAuth.currentUser){
+  return !!user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(console.error);
@@ -2211,10 +2206,7 @@ firebaseAuth.onAuthStateChanged(async(user)=>{
     emailEl.textContent=user.email||"Signed in";
     logout.style.display="block";
     if(adminRow) adminRow.style.display=isAdminUser(user)?"grid":"none";
-    try{
-      await loadUserCloudData(user);
-      await loadCloudProducts();
-    }
+    try{ await loadUserCloudData(user); }
     catch(error){ console.error(error); alert(friendlyFirebaseError(error)); }
   }else{
     cloudDataReady=false;
@@ -2228,7 +2220,6 @@ firebaseAuth.onAuthStateChanged(async(user)=>{
     emailEl.textContent="Create or log in to a real account";
     logout.style.display="none";
     if(adminRow) adminRow.style.display="none";
-    loadCloudProducts().catch(console.error);
   }
 });
 
@@ -2875,7 +2866,7 @@ function closeAllSpecialPages(){
 
 function showAppPage(id){
   if(id==="adminPage" && !isAdminUser()){
-    alert("Admin access is restricted to the store owner.");
+    alert("Admin access is restricted to the authorized administrator account.");
     showAccountPage();
     return;
   }
@@ -3017,131 +3008,66 @@ setDark(localStorage.getItem("iphoneCityDark")==="1");
 darkSwitch?.addEventListener("click",()=>setDark(!document.body.classList.contains("dark")));
 
 function productCards(){
-  return [...document.querySelectorAll("#grid .card")];
+  return [...document.querySelectorAll(".card")];
+}
+function renderAdminProducts(){
+  const adminGrid=document.getElementById("adminGrid");
+  if(!adminGrid) return;
+  adminGrid.innerHTML="";
+  productCards().forEach((card,index)=>{
+    const item=document.createElement("div");
+    item.className="admin-product";
+    item.innerHTML=`<img src="${card.querySelector(".pic").src}"><h4>${card.querySelector("h2").textContent}</h4><p>${card.querySelector(".price").textContent}</p><div class="admin-actions"><button class="edit-btn">Edit Price</button><button class="delete-btn">Delete</button></div>`;
+    item.querySelector(".edit-btn").onclick=()=>{
+      const newPrice=prompt("Enter new price in KSh:",card.dataset.price);
+      if(newPrice && !isNaN(newPrice)){
+        card.dataset.price=Number(newPrice);
+        const priceEl=card.querySelector(".price");
+        const del=priceEl.querySelector("del")?.outerHTML||"";
+        priceEl.innerHTML=`KSh ${Number(newPrice).toLocaleString()} ${del}`;
+        renderAdminProducts();
+      }
+    };
+    item.querySelector(".delete-btn").onclick=()=>{
+      if(confirm("Delete this product from the page?")){
+        card.remove();
+        renderAdminProducts();
+      }
+    };
+    adminGrid.appendChild(item);
+  });
 }
 
-function escapeHtml(value){
-  return String(value??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]));
-}
-
-function createCloudProductCard(product,id){
-  let card=document.querySelector(`.card[data-cloud-id="${id}"]`);
-  if(!card){
-    card=document.createElement("article");
-    card.className="card";
-    card.dataset.cloudId=id;
-    document.getElementById("grid").prepend(card);
-  }
-  const name=product.name||"Unnamed product";
-  const price=Number(product.price)||0;
-  const storage=product.storage||"128GB";
-  const image=product.image||"";
-  const description=product.description||"Available from iPhone City.";
-  const stock=Math.max(0,Number(product.stock)||0);
+document.getElementById("adminAdd")?.addEventListener("click",()=>{
+  const name=document.getElementById("adminName").value.trim();
+  const price=Number(document.getElementById("adminPrice").value);
+  const img=document.getElementById("adminImage").value.trim() || (document.querySelector(".card .pic")?.src || "");
+  if(!name || !price){alert("Enter a product name and price.");return;}
+  const card=document.createElement("article");
+  card.className="card";
   card.dataset.name=name.toLowerCase();
-  card.dataset.price=String(price);
+  card.dataset.price=price;
   card.dataset.rating="4.5";
-  card.innerHTML=`<span class="tag">STORE</span><button class="heart" aria-label="Add to wishlist">♡</button><img class="pic" src="${escapeHtml(image)}" alt="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2><div class="rating">★ 4.5 <span>(0)</span></div><p class="desc">${escapeHtml(description)}</p><button class="specs-toggle">View Specs <span>＋</span></button><div class="specs"><b>Storage:</b> ${escapeHtml(storage)}<br><b>Stock:</b> ${stock}</div><div class="discount">SPECIAL OFFER</div><div class="chips"><button class="chip active">${escapeHtml(storage)}</button></div><div class="price">KSh ${price.toLocaleString()}</div><div class="stock">${stock>0?`${stock} in stock`:"Out of stock"}</div><div class="mini">🚚 Free Delivery &nbsp; 🛡️ 1 Year Warranty</div><button class="add" ${stock<1?"disabled":""}>🛒 Add to Cart</button>`;
+  card.innerHTML=`<span class="tag">NEW</span><button class="heart">♡</button><img class="pic" src="${img}" alt="${name}"><h2>${name}</h2><div class="rating">★ 4.5 <span>(0)</span></div><p class="desc">New product added from the demo admin dashboard.</p><button class="specs-toggle">View Specs <span>＋</span></button><div class="specs"><b>Specifications:</b> Update from the admin dashboard.</div><div class="discount">SPECIAL OFFER</div><div class="chips"><button class="chip active">128GB</button></div><div class="price">KSh ${price.toLocaleString()}</div><div class="stock">In Stock</div><div class="mini">🚚 Free Delivery &nbsp; 🛡️ 1 Year Warranty</div><button class="add">🛒 Add to Cart</button>`;
+  document.getElementById("grid").prepend(card);
   card.querySelector(".specs-toggle").onclick=()=>card.querySelector(".specs").classList.toggle("show");
   card.querySelector(".heart").onclick=async()=>{
-    if(!firebaseAuth.currentUser){ alert("Please log in to use your wishlist."); showLoginPage(); return; }
+    if(!firebaseAuth.currentUser){ alert("Please log in to save products to your wishlist."); showLoginPage(); return; }
     const heart=card.querySelector(".heart");
     if(wishlistNames.includes(name)){ wishlistNames=wishlistNames.filter(x=>x!==name); heart.textContent="♡"; }
     else { wishlistNames.push(name); heart.textContent="♥"; }
-    await saveWishlistToCloud();
+    try{ await saveWishlistToCloud(); }catch(error){ alert(friendlyFirebaseError(error)); }
   };
   card.querySelector(".add").onclick=()=>{
-    cartItemsData.push({name,storage,price,img:image,qty:1});
+    cartItemsData.push({name,storage:"128GB",price,img,qty:1});
     updateCartCounters();
-    renderCart();
     queueCloudCartSave();
   };
-  return card;
-}
-
-async function loadCloudProducts(){
-  const snapshot=await firebaseDb.collection(PRODUCTS_COLLECTION).orderBy("createdAt","desc").get();
-  const liveIds=new Set();
-  snapshot.forEach(doc=>{
-    liveIds.add(doc.id);
-    createCloudProductCard(doc.data(),doc.id);
-  });
-  document.querySelectorAll(".card[data-cloud-id]").forEach(card=>{
-    if(!liveIds.has(card.dataset.cloudId)) card.remove();
-  });
-  cloudProductsLoaded=true;
-  if(document.getElementById("adminPage")?.classList.contains("active")) renderAdminProducts();
-}
-
-async function renderAdminProducts(){
-  const adminGrid=document.getElementById("adminGrid");
-  if(!adminGrid) return;
-  if(!isAdminUser()){
-    adminGrid.innerHTML="<p>Admin access denied.</p>";
-    return;
-  }
-  adminGrid.innerHTML="<p>Loading products…</p>";
-  try{
-    const snapshot=await firebaseDb.collection(PRODUCTS_COLLECTION).orderBy("createdAt","desc").get();
-    adminGrid.innerHTML="";
-    if(snapshot.empty) adminGrid.innerHTML="<p>No cloud products yet. Add your first product above.</p>";
-    snapshot.forEach(doc=>{
-      const product=doc.data();
-      const item=document.createElement("div");
-      item.className="admin-product";
-      item.innerHTML=`<img src="${escapeHtml(product.image||"")}" alt=""><h4>${escapeHtml(product.name||"")}</h4><p>KSh ${Number(product.price||0).toLocaleString()} · Stock ${Number(product.stock||0)}</p><div class="admin-actions"><button class="edit-btn">Edit</button><button class="delete-btn">Delete</button></div>`;
-      item.querySelector(".edit-btn").onclick=async()=>{
-        const name=prompt("Product name:",product.name||""); if(name===null) return;
-        const price=prompt("Price in KSh:",product.price||0); if(price===null||isNaN(price)) return;
-        const stock=prompt("Stock quantity:",product.stock||0); if(stock===null||isNaN(stock)) return;
-        try{
-          await doc.ref.update({name:name.trim(),price:Number(price),stock:Number(stock),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-          await loadCloudProducts();
-          await renderAdminProducts();
-          alert("Product updated.");
-        }catch(error){ alert(friendlyFirebaseError(error)); }
-      };
-      item.querySelector(".delete-btn").onclick=async()=>{
-        if(!confirm(`Delete ${product.name||"this product"} from the store?`)) return;
-        try{
-          await doc.ref.delete();
-          await loadCloudProducts();
-          await renderAdminProducts();
-          alert("Product deleted.");
-        }catch(error){ alert(friendlyFirebaseError(error)); }
-      };
-      adminGrid.appendChild(item);
-    });
-  }catch(error){
-    adminGrid.innerHTML=`<p>${escapeHtml(friendlyFirebaseError(error))}</p>`;
-  }
-}
-
-document.getElementById("adminAdd")?.addEventListener("click",async()=>{
-  if(!isAdminUser()){ alert("Admin access denied."); return; }
-  const name=document.getElementById("adminName").value.trim();
-  const price=Number(document.getElementById("adminPrice").value);
-  const image=document.getElementById("adminImage").value.trim();
-  const description=document.getElementById("adminDescription").value.trim();
-  const storage=document.getElementById("adminStorage").value.trim()||"128GB";
-  const stock=Math.max(0,Number(document.getElementById("adminStock").value)||0);
-  if(!name || !price || !image){ alert("Enter the product name, price, and image URL."); return; }
-  const button=document.getElementById("adminAdd");
-  button.disabled=true; button.textContent="Saving…";
-  try{
-    await firebaseDb.collection(PRODUCTS_COLLECTION).add({
-      name,price,image,description,storage,stock,
-      createdBy:firebaseAuth.currentUser.uid,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    ["adminName","adminPrice","adminImage","adminDescription","adminStorage"].forEach(id=>document.getElementById(id).value="");
-    document.getElementById("adminStock").value="1";
-    await loadCloudProducts();
-    await renderAdminProducts();
-    alert("Product saved and published to the store.");
-  }catch(error){ alert(friendlyFirebaseError(error)); }
-  finally{ button.disabled=false; button.textContent="Save Product to Store"; }
+  document.getElementById("adminName").value="";
+  document.getElementById("adminPrice").value="";
+  document.getElementById("adminImage").value="";
+  renderAdminProducts();
+  alert("Product added.");
 });
 
 document.getElementById("openOrders").onclick=()=>showFeaturePage("ordersPage");
