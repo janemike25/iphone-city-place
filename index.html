@@ -3155,7 +3155,8 @@ document.querySelectorAll(".payment-tab").forEach(tab=>{
 });
 
 function validKenyanPhone(phone){
-  return /^(?:\\+254|254|0)?[17]\\d{8}$/.test(phone.replace(/\\s+/g,""));
+  const cleaned=String(phone||"").replace(/[\s()-]/g,"");
+  return /^(?:0[17]\d{8}|254[17]\d{8}|\+254[17]\d{8})$/.test(cleaned);
 }
 
 async function createOrder(method,paymentPhone=""){
