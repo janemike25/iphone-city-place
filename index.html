@@ -2121,8 +2121,21 @@ body.dark .feature-content p{
       <div id="adminImagePreviewWrap" style="display:none;margin:-4px 0 18px"><img id="adminImagePreview" alt="Selected product image" style="width:100%;max-height:260px;object-fit:contain;border:1px solid #ddd;border-radius:14px;background:#f7f7f7"></div>
       <div id="adminUploadProgress" style="display:none;margin:-4px 0 18px;font-weight:700;color:#d96700">Preparing image…</div>
       <div class="field"><label>Description</label><textarea id="adminDescription" placeholder="Product description"></textarea></div>
-      <div class="field"><label>Storage</label><input id="adminStorage" placeholder="128GB"></div>
+      <div class="field"><label>Category</label><select id="adminCategory">
+        <option value="iphones">iPhones</option>
+        <option value="ipads">iPads</option>
+        <option value="macbooks">Mac</option>
+        <option value="watches">Apple Watch</option>
+        <option value="audio">AirPods & Audio</option>
+        <option value="accessories">Accessories</option>
+      </select></div>
+      <div class="field"><label>Subcategory</label><select id="adminSubcategory"></select></div>
+      <div class="field"><label>Storage / specification</label><input id="adminStorage" placeholder="128GB"></div>
       <div class="field"><label>Stock quantity</label><input id="adminStock" type="number" min="0" value="1"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:-2px 0 18px">
+        <label style="display:flex;align-items:center;gap:9px;border:1px solid #ddd;border-radius:12px;padding:13px;background:#fff"><input id="adminBestSeller" type="checkbox" style="width:20px;height:20px"> <b>Best Seller</b></label>
+        <label style="display:flex;align-items:center;gap:9px;border:1px solid #ddd;border-radius:12px;padding:13px;background:#fff"><input id="adminDeal" type="checkbox" style="width:20px;height:20px"> <b>Deal</b></label>
+      </div>
       <button class="primary-btn" id="adminAdd">Save Product to Store</button>
     </div>
     <div class="admin-card">
@@ -2184,6 +2197,14 @@ const firebaseStorage = firebase.storage();
 
 const ADMIN_EMAIL="mikemonda222@gmail.com";
 const PRODUCTS_COLLECTION="storeProducts";
+const PRODUCT_SUBCATEGORIES={
+  iphones:[['iphone16','iPhone 16 Series'],['iphone15','iPhone 15 Series'],['iphone14','iPhone 14 Series'],['iphone13','iPhone 13 Series'],['budget','Affordable / Other iPhones']],
+  ipads:[['ipadpro','iPad Pro'],['ipadair','iPad Air'],['ipadmini','iPad Mini'],['ipads','Other iPads']],
+  macbooks:[['macbookair','MacBook Air'],['macbookpro','MacBook Pro'],['imac','iMac'],['macbooks','Other Mac']],
+  watches:[['watchultra','Watch Ultra'],['watchseries','Watch Series'],['watchbands','Watch Bands']],
+  audio:[['airpods','AirPods'],['headphones','Headphones / Earbuds'],['speakers','Speakers']],
+  accessories:[['cases','Cases & Covers'],['chargers','Chargers'],['cables','Cables'],['powerbanks','Power Banks'],['screenprotectors','Screen Protectors'],['stands','Stands'],['accessories','Other Accessories']]
+};
 let cloudProductsLoaded=false;
 function isAdminUser(user=firebaseAuth.currentUser){
   return !!user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase();
@@ -2477,38 +2498,42 @@ function cardMatchesSection(card,section){
   const tag=(card.querySelector('.tag')?.textContent||'').toLowerCase();
   const discount=(card.querySelector('.discount')?.textContent||'').toLowerCase();
   const rating=Number(card.dataset.rating||0);
-  if(section==='latest') return name.includes('iphone') && /iphone\s*(1[4-9]|2[0-9])/i.test(name);
-  if(section==='best') return tag.includes('best') || rating>=4.8;
-  if(section==='accessories') return /(airpods|watch|charger|cable|case|accessor|ipad|macbook)/i.test(name);
-  if(section==='deals') return discount.includes('offer') || discount.includes('off') || tag.includes('sale') || tag.includes('deal');
-  if(section==='iphones') return /iphone/i.test(name);
-  if(section==='iphone16') return /iphone\s*16/i.test(name);
-  if(section==='iphone15') return /iphone\s*15/i.test(name);
-  if(section==='iphone14') return /iphone\s*14/i.test(name);
-  if(section==='iphone13') return /iphone\s*13/i.test(name);
-  if(section==='budget') return /iphone/i.test(name) && Number(card.dataset.price||0)<=70000;
-  if(section==='ipads') return /ipad/i.test(name);
-  if(section==='ipadpro') return /ipad.*pro/i.test(name);
-  if(section==='ipadair') return /ipad.*air/i.test(name);
-  if(section==='ipadmini') return /ipad.*mini/i.test(name);
-  if(section==='macbooks') return /(macbook|imac|mac mini)/i.test(name);
-  if(section==='macbookair') return /macbook.*air/i.test(name);
-  if(section==='macbookpro') return /macbook.*pro/i.test(name);
-  if(section==='imac') return /imac/i.test(name);
-  if(section==='watches') return /(apple watch|watch series|watch ultra)/i.test(name);
-  if(section==='watchultra') return /watch.*ultra/i.test(name);
-  if(section==='watchseries') return /watch.*series/i.test(name);
-  if(section==='watchbands') return /(watch band|watch strap)/i.test(name);
-  if(section==='audio') return /(airpods|headphone|speaker|earbud)/i.test(name);
-  if(section==='airpods') return /airpods/i.test(name);
-  if(section==='headphones') return /(headphone|earbud)/i.test(name);
-  if(section==='speakers') return /speaker/i.test(name);
-  if(section==='cases') return /(case|cover)/i.test(name);
-  if(section==='chargers') return /charger/i.test(name);
-  if(section==='cables') return /cable/i.test(name);
-  if(section==='powerbanks') return /(power bank|powerbank)/i.test(name);
-  if(section==='screenprotectors') return /(screen protector|tempered glass)/i.test(name);
-  if(section==='stands') return /stand/i.test(name);
+  const category=card.dataset.category||'';
+  const subcategory=card.dataset.subcategory||'';
+  const bestSeller=card.dataset.bestSeller==='true';
+  const deal=card.dataset.deal==='true';
+  if(section==='latest') return subcategory==='iphone16' || subcategory==='iphone15' || (name.includes('iphone') && /iphone\s*(1[4-9]|2[0-9])/i.test(name));
+  if(section==='best') return bestSeller || tag.includes('best') || rating>=4.8;
+  if(section==='accessories') return category==='accessories' || /(airpods|watch|charger|cable|case|accessor|ipad|macbook)/i.test(name);
+  if(section==='deals') return deal || discount.includes('offer') || discount.includes('off') || tag.includes('sale') || tag.includes('deal');
+  if(section==='iphones') return category==='iphones' || /iphone/i.test(name);
+  if(section==='iphone16') return subcategory==='iphone16' || /iphone\s*16/i.test(name);
+  if(section==='iphone15') return subcategory==='iphone15' || /iphone\s*15/i.test(name);
+  if(section==='iphone14') return subcategory==='iphone14' || /iphone\s*14/i.test(name);
+  if(section==='iphone13') return subcategory==='iphone13' || /iphone\s*13/i.test(name);
+  if(section==='budget') return subcategory==='budget' || ((category==='iphones'||/iphone/i.test(name)) && Number(card.dataset.price||0)<=70000);
+  if(section==='ipads') return category==='ipads' || /ipad/i.test(name);
+  if(section==='ipadpro') return subcategory==='ipadpro' || /ipad.*pro/i.test(name);
+  if(section==='ipadair') return subcategory==='ipadair' || /ipad.*air/i.test(name);
+  if(section==='ipadmini') return subcategory==='ipadmini' || /ipad.*mini/i.test(name);
+  if(section==='macbooks') return category==='macbooks' || /(macbook|imac|mac mini)/i.test(name);
+  if(section==='macbookair') return subcategory==='macbookair' || /macbook.*air/i.test(name);
+  if(section==='macbookpro') return subcategory==='macbookpro' || /macbook.*pro/i.test(name);
+  if(section==='imac') return subcategory==='imac' || /imac/i.test(name);
+  if(section==='watches') return category==='watches' || /(apple watch|watch series|watch ultra)/i.test(name);
+  if(section==='watchultra') return subcategory==='watchultra' || /watch.*ultra/i.test(name);
+  if(section==='watchseries') return subcategory==='watchseries' || /watch.*series/i.test(name);
+  if(section==='watchbands') return subcategory==='watchbands' || /(watch band|watch strap)/i.test(name);
+  if(section==='audio') return category==='audio' || /(airpods|headphone|speaker|earbud)/i.test(name);
+  if(section==='airpods') return subcategory==='airpods' || /airpods/i.test(name);
+  if(section==='headphones') return subcategory==='headphones' || /(headphone|earbud)/i.test(name);
+  if(section==='speakers') return subcategory==='speakers' || /speaker/i.test(name);
+  if(section==='cases') return subcategory==='cases' || /(case|cover)/i.test(name);
+  if(section==='chargers') return subcategory==='chargers' || /charger/i.test(name);
+  if(section==='cables') return subcategory==='cables' || /cable/i.test(name);
+  if(section==='powerbanks') return subcategory==='powerbanks' || /(power bank|powerbank)/i.test(name);
+  if(section==='screenprotectors') return subcategory==='screenprotectors' || /(screen protector|tempered glass)/i.test(name);
+  if(section==='stands') return subcategory==='stands' || /stand/i.test(name);
   return true;
 }
 function apply(){
@@ -3243,10 +3268,20 @@ function createCloudProductCard(product,id){
   const image=product.image||"";
   const description=product.description||"Available from iPhone City.";
   const stock=Math.max(0,Number(product.stock)||0);
+  const category=product.category||"";
+  const subcategory=product.subcategory||"";
+  const bestSeller=product.bestSeller===true;
+  const deal=product.deal===true;
   card.dataset.name=name.toLowerCase();
   card.dataset.price=String(price);
   card.dataset.rating="4.5";
-  card.innerHTML=`<span class="tag">STORE</span><button class="heart" aria-label="Add to wishlist">♡</button><img class="pic" src="${escapeHtml(image)}" alt="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2><div class="rating">★ 4.5 <span>(0)</span></div><p class="desc">${escapeHtml(description)}</p><button class="specs-toggle">View Specs <span>＋</span></button><div class="specs"><b>Storage:</b> ${escapeHtml(storage)}<br><b>Stock:</b> ${stock}</div><div class="discount">SPECIAL OFFER</div><div class="chips"><button class="chip active">${escapeHtml(storage)}</button></div><div class="price">KSh ${price.toLocaleString()}</div><div class="stock">${stock>0?`${stock} in stock`:"Out of stock"}</div><div class="mini">🚚 Free Delivery &nbsp; 🛡️ 1 Year Warranty</div><button class="add" ${stock<1?"disabled":""}>🛒 Add to Cart</button>`;
+  card.dataset.category=category;
+  card.dataset.subcategory=subcategory;
+  card.dataset.bestSeller=bestSeller?"true":"false";
+  card.dataset.deal=deal?"true":"false";
+  const productTag=bestSeller?"BEST SELLER":(deal?"DEAL":"STORE");
+  const offerText=deal?"SPECIAL DEAL":"";
+  card.innerHTML=`<span class="tag">${productTag}</span><button class="heart" aria-label="Add to wishlist">♡</button><img class="pic" src="${escapeHtml(image)}" alt="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2><div class="rating">★ 4.5 <span>(0)</span></div><p class="desc">${escapeHtml(description)}</p><button class="specs-toggle">View Specs <span>＋</span></button><div class="specs"><b>Storage:</b> ${escapeHtml(storage)}<br><b>Stock:</b> ${stock}</div><div class="discount" style="${deal?'':'display:none'}">${offerText}</div><div class="chips"><button class="chip active">${escapeHtml(storage)}</button></div><div class="price">KSh ${price.toLocaleString()}</div><div class="stock">${stock>0?`${stock} in stock`:"Out of stock"}</div><div class="mini">🚚 Free Delivery &nbsp; 🛡️ 1 Year Warranty</div><button class="add" ${stock<1?"disabled":""}>🛒 Add to Cart</button>`;
   card.querySelector(".specs-toggle").onclick=()=>card.querySelector(".specs").classList.toggle("show");
   card.querySelector(".heart").onclick=async()=>{
     if(!firebaseAuth.currentUser){ alert("Please log in to use your wishlist."); showLoginPage(); return; }
@@ -3295,13 +3330,17 @@ async function renderAdminProducts(){
       const product=doc.data();
       const item=document.createElement("div");
       item.className="admin-product";
-      item.innerHTML=`<img src="${escapeHtml(product.image||"")}" alt=""><h4>${escapeHtml(product.name||"")}</h4><p>KSh ${Number(product.price||0).toLocaleString()} · Stock ${Number(product.stock||0)}</p><div class="admin-actions"><button class="edit-btn">Edit</button><button class="delete-btn">Delete</button></div>`;
+      item.innerHTML=`<img src="${escapeHtml(product.image||"")}" alt=""><h4>${escapeHtml(product.name||"")}</h4><p>KSh ${Number(product.price||0).toLocaleString()} · Stock ${Number(product.stock||0)}</p><p>${escapeHtml(categoryLabels[product.subcategory]||categoryLabels[product.category]||'Uncategorised')}${product.bestSeller?' · Best Seller':''}${product.deal?' · Deal':''}</p><div class="admin-actions"><button class="edit-btn">Edit</button><button class="delete-btn">Delete</button></div>`;
       item.querySelector(".edit-btn").onclick=async()=>{
         const name=prompt("Product name:",product.name||""); if(name===null) return;
         const price=prompt("Price in KSh:",product.price||0); if(price===null||isNaN(price)) return;
         const stock=prompt("Stock quantity:",product.stock||0); if(stock===null||isNaN(stock)) return;
+        const category=prompt("Category key (iphones, ipads, macbooks, watches, audio, accessories):",product.category||"iphones"); if(category===null) return;
+        const subcategory=prompt("Subcategory key (example: iphone16, airpods, chargers):",product.subcategory||""); if(subcategory===null) return;
+        const bestSeller=confirm("Mark this product as a Best Seller? Press OK for Yes, Cancel for No.");
+        const deal=confirm("Mark this product as a Deal? Press OK for Yes, Cancel for No.");
         try{
-          await doc.ref.update({name:name.trim(),price:Number(price),stock:Number(stock),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+          await doc.ref.update({name:name.trim(),price:Number(price),stock:Number(stock),category:category.trim(),subcategory:subcategory.trim(),bestSeller,deal,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
           await loadCloudProducts();
           await renderAdminProducts();
           alert("Product updated.");
@@ -3323,6 +3362,17 @@ async function renderAdminProducts(){
     adminGrid.innerHTML=`<p>${escapeHtml(friendlyFirebaseError(error))}</p>`;
   }
 }
+
+const adminCategory=document.getElementById("adminCategory");
+const adminSubcategory=document.getElementById("adminSubcategory");
+function populateAdminSubcategories(selectedValue){
+  if(!adminCategory||!adminSubcategory) return;
+  const choices=PRODUCT_SUBCATEGORIES[adminCategory.value]||[];
+  adminSubcategory.innerHTML=choices.map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
+  if(selectedValue && choices.some(([value])=>value===selectedValue)) adminSubcategory.value=selectedValue;
+}
+adminCategory?.addEventListener("change",()=>populateAdminSubcategories());
+populateAdminSubcategories();
 
 const adminImageFile=document.getElementById("adminImageFile");
 adminImageFile?.addEventListener("change",()=>{
@@ -3365,6 +3415,10 @@ document.getElementById("adminAdd")?.addEventListener("click",async()=>{
   const price=Number(document.getElementById("adminPrice").value);
   const imageFile=adminImageFile?.files?.[0];
   const description=document.getElementById("adminDescription").value.trim();
+  const category=adminCategory?.value||"iphones";
+  const subcategory=adminSubcategory?.value||category;
+  const bestSeller=document.getElementById("adminBestSeller")?.checked===true;
+  const deal=document.getElementById("adminDeal")?.checked===true;
   const storage=document.getElementById("adminStorage").value.trim()||"128GB";
   const stock=Math.max(0,Number(document.getElementById("adminStock").value)||0);
   if(!name || !price || !imageFile){ alert("Enter the product name and price, then choose an image."); return; }
@@ -3377,7 +3431,7 @@ document.getElementById("adminAdd")?.addEventListener("click",async()=>{
     uploaded=await uploadAdminProductImage(imageFile);
     progress.textContent="Saving product…";
     await firebaseDb.collection(PRODUCTS_COLLECTION).add({
-      name,price,image:uploaded.url,imagePath:uploaded.path,description,storage,stock,
+      name,price,image:uploaded.url,imagePath:uploaded.path,description,category,subcategory,bestSeller,deal,storage,stock,
       createdBy:firebaseAuth.currentUser.uid,
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -3387,6 +3441,10 @@ document.getElementById("adminAdd")?.addEventListener("click",async()=>{
     document.getElementById("adminImagePreviewWrap").style.display="none";
     document.getElementById("adminImagePreview").removeAttribute("src");
     document.getElementById("adminStock").value="1";
+    document.getElementById("adminBestSeller").checked=false;
+    document.getElementById("adminDeal").checked=false;
+    adminCategory.value="iphones";
+    populateAdminSubcategories();
     await loadCloudProducts();
     await renderAdminProducts();
     alert("Product image uploaded and product published to the store.");
