@@ -1945,23 +1945,8 @@ body.dark .feature-content p{
 </section>
 
 <section class="feature-page" id="ordersPage">
-  <div class="feature-header"><button class="feature-back" data-back>←</button><h2>Orders</h2><span></span></div>
-  <div class="feature-content">
-    <div class="order-card">
-      <span class="status-pill">Processing</span>
-      <h3>Order #IPC-1001</h3>
-      <p>iPhone 13 Pro Max • 256GB</p>
-      <p>Total: KSh 55,500</p>
-      <button class="feature-button" onclick="alert('Order tracking opened.')">Track Order</button>
-    </div>
-    <div class="order-card">
-      <span class="status-pill">Delivered</span>
-      <h3>Order #IPC-0994</h3>
-      <p>iPhone 11 Yellow • 128GB</p>
-      <p>Total: KSh 29,550</p>
-      <button class="feature-secondary" onclick="showFeaturePage('ratingsPage')">Rate Product</button>
-    </div>
-  </div>
+  <div class="feature-header"><button class="feature-back" data-back>←</button><h2>My Orders</h2><span></span></div>
+  <div class="feature-content" id="customerOrdersList"><p>Loading your orders…</p></div>
 </section>
 
 <section class="feature-page" id="ratingsPage">
@@ -2042,26 +2027,21 @@ body.dark .feature-content p{
 </section>
 
 <section class="app-page" id="paymentPage">
-  <div class="app-header"><button class="app-back" data-app-back>←</button><h2>Payment</h2><span></span></div>
+  <div class="app-header"><button class="app-back" data-app-back>←</button><h2>Payment Method</h2><span></span></div>
   <div class="app-content">
     <div class="payment-card">
-      <div class="demo-note">Demo checkout only. No real payment is processed or transmitted.</div>
+      <div class="demo-note">Your order will be saved securely. M-Pesa payment remains pending until confirmed by the store.</div>
       <div class="payment-tabs">
         <button class="payment-tab active" data-pay="mpesa">M-Pesa</button>
-        <button class="payment-tab" data-pay="card">Card</button>
+        <button class="payment-tab" data-pay="delivery">Pay on Delivery</button>
       </div>
       <div class="payment-panel show" id="mpesaPanel">
-        <div class="field"><label>M-Pesa phone number</label><input id="mpesaPhone" placeholder="07XXXXXXXX"></div>
-        <button class="primary-btn" id="payMpesa">Confirm Demo M-Pesa Payment</button>
+        <div class="field"><label>M-Pesa phone number</label><input id="mpesaPhone" inputmode="tel" placeholder="07XXXXXXXX"></div>
+        <button class="primary-btn" id="payMpesa">Place Order with M-Pesa</button>
       </div>
-      <div class="payment-panel" id="cardPanel">
-        <div class="field"><label>Name on card</label><input id="cardName" placeholder="Cardholder name"></div>
-        <div class="field"><label>Card number</label><input id="cardNumber" maxlength="19" placeholder="0000 0000 0000 0000"></div>
-        <div class="inline-actions">
-          <div class="field"><label>Expiry</label><input id="cardExpiry" maxlength="5" placeholder="MM/YY"></div>
-          <div class="field"><label>CVV</label><input id="cardCvv" maxlength="4" placeholder="123"></div>
-        </div>
-        <button class="primary-btn" id="payCard">Confirm Demo Card Payment</button>
+      <div class="payment-panel" id="deliveryPanel">
+        <p>You will pay when the order is delivered.</p>
+        <button class="primary-btn" id="payDelivery">Place Order</button>
       </div>
     </div>
   </div>
@@ -2141,6 +2121,10 @@ body.dark .feature-content p{
     <div class="admin-card">
       <h3>Manage Products</h3>
       <div class="admin-grid" id="adminGrid"></div>
+    </div>
+    <div class="admin-card">
+      <h3>Customer Orders</h3>
+      <div id="adminOrdersList"><p>Open the dashboard to load orders.</p></div>
     </div>
   </div>
 </section>
@@ -2990,7 +2974,6 @@ document.querySelectorAll("[data-back]").forEach(btn=>{
 });
 
 document.getElementById("openHelp").onclick=()=>showFeaturePage("helpPage");
-document.getElementById("openOrders").onclick=()=>showFeaturePage("ordersPage");
 document.getElementById("openRatings").onclick=()=>showFeaturePage("ratingsPage");
 document.getElementById("openVouchers").onclick=()=>showFeaturePage("vouchersPage");
 document.getElementById("openWishlist").onclick=()=>showFeaturePage("wishlistPage");
@@ -3114,7 +3097,7 @@ function showAppPage(id){
   const page=document.getElementById(id);
   if(page) page.classList.add("active");
   if(id==="checkoutPage") renderCheckout();
-  if(id==="adminPage") renderAdminProducts();
+  if(id==="adminPage"){ renderAdminProducts(); renderAdminOrders(); }
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
@@ -3167,48 +3150,80 @@ document.querySelectorAll(".payment-tab").forEach(tab=>{
     document.querySelectorAll(".payment-tab").forEach(t=>t.classList.remove("active"));
     document.querySelectorAll(".payment-panel").forEach(p=>p.classList.remove("show"));
     tab.classList.add("active");
-    document.getElementById(tab.dataset.pay==="mpesa"?"mpesaPanel":"cardPanel").classList.add("show");
+    document.getElementById(tab.dataset.pay==="mpesa"?"mpesaPanel":"deliveryPanel").classList.add("show");
   };
 });
 
-async function completeDemoOrder(method){
+function validKenyanPhone(phone){
+  return /^(?:\\+254|254|0)?[17]\\d{8}$/.test(phone.replace(/\\s+/g,""));
+}
+
+async function createOrder(method,paymentPhone=""){
   if(cartItemsData.length===0){alert("Your cart is empty.");return;}
   const user=firebaseAuth.currentUser;
-  if(!user){ alert("Please log in before placing an order."); showLoginPage(); return; }
-  const orderNo="IPC-"+Math.floor(1000+Math.random()*9000);
-  const total=cartItemsData.reduce((sum,item)=>sum+(item.price*item.qty),0);
-  const order={
-    orderNo,method,total,status:"Processing",
-    items:cartItemsData.map(item=>({...item})),
-    delivery:{
-      name:document.getElementById("coName").value.trim(),
-      phone:document.getElementById("coPhone").value.trim(),
-      town:document.getElementById("coTown").value.trim(),
-      address:document.getElementById("coAddress").value.trim()
-    },
-    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  if(!user){alert("Please log in before placing an order.");showLoginPage();return;}
+
+  const delivery={
+    name:document.getElementById("coName").value.trim(),
+    phone:document.getElementById("coPhone").value.trim(),
+    town:document.getElementById("coTown").value.trim(),
+    address:document.getElementById("coAddress").value.trim()
   };
+
+  if(!delivery.name || !validKenyanPhone(delivery.phone) || !delivery.town || !delivery.address){
+    alert("Please enter a valid name, Kenyan phone number, town and delivery directions.");
+    return;
+  }
+
+  const orderNo="IPC-"+Date.now().toString().slice(-8);
+  const total=cartItemsData.reduce((sum,item)=>sum+(Number(item.price)*Number(item.qty)),0);
+  const order={
+    orderNo,
+    userId:user.uid,
+    customerEmail:user.email||"",
+    method,
+    paymentPhone,
+    paymentStatus:method==="Pay on Delivery"?"Pay on delivery":"Pending",
+    total,
+    status:"Pending",
+    items:cartItemsData.map(item=>({
+      name:item.name||"",
+      storage:item.storage||"",
+      price:Number(item.price)||0,
+      img:item.img||"",
+      qty:Number(item.qty)||1
+    })),
+    delivery,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  const buttons=[document.getElementById("payMpesa"),document.getElementById("payDelivery")].filter(Boolean);
+  buttons.forEach(b=>b.disabled=true);
   try{
-    await firebaseDb.collection("users").doc(user.uid).collection("orders").doc(orderNo).set(order);
+    await firebaseDb.collection("orders").doc(orderNo).set(order);
     cartItemsData=[];
     await saveCartToCloud();
     renderCart();
-    alert(`${method} checkout recorded. Order ${orderNo} created.`);
     document.getElementById("trackingOrder").textContent=`Order #${orderNo}`;
+    document.getElementById("trackingEta").textContent="Status: Pending confirmation";
+    alert(`Order ${orderNo} has been placed successfully.`);
     showAppPage("trackingPage");
-  }catch(error){ alert(friendlyFirebaseError(error)); }
+  }catch(error){
+    alert(friendlyFirebaseError(error));
+  }finally{
+    buttons.forEach(b=>b.disabled=false);
+  }
 }
 
 document.getElementById("payMpesa")?.addEventListener("click",()=>{
   const phone=document.getElementById("mpesaPhone").value.trim();
-  if(phone.length<9){alert("Enter a valid phone number.");return;}
-  completeDemoOrder("M-Pesa");
+  if(!validKenyanPhone(phone)){alert("Enter a valid Kenyan M-Pesa phone number.");return;}
+  createOrder("M-Pesa",phone);
 });
 
-document.getElementById("payCard")?.addEventListener("click",()=>{
-  const num=document.getElementById("cardNumber").value.replace(/\s/g,"");
-  if(num.length<12){alert("Enter a valid demo card number.");return;}
-  completeDemoOrder("Card");
+document.getElementById("payDelivery")?.addEventListener("click",()=>{
+  createOrder("Pay on Delivery");
 });
 
 document.getElementById("checkoutBtn").onclick=()=>{
@@ -3458,7 +3473,100 @@ document.getElementById("adminAdd")?.addEventListener("click",async()=>{
   }
 });
 
-document.getElementById("openOrders").onclick=()=>showFeaturePage("ordersPage");
+
+function orderDateValue(order){
+  return order.createdAt?.toMillis ? order.createdAt.toMillis() : 0;
+}
+
+async function renderCustomerOrders(){
+  const box=document.getElementById("customerOrdersList");
+  if(!box) return;
+  const user=firebaseAuth.currentUser;
+  if(!user){box.innerHTML="<p>Please log in to view your orders.</p>";return;}
+  box.innerHTML="<p>Loading your orders…</p>";
+  try{
+    const snap=await firebaseDb.collection("orders").where("userId","==",user.uid).get();
+    const orders=[];
+    snap.forEach(doc=>orders.push({id:doc.id,...doc.data()}));
+    orders.sort((a,b)=>orderDateValue(b)-orderDateValue(a));
+    if(!orders.length){box.innerHTML="<p>You have not placed any orders yet.</p>";return;}
+    box.innerHTML="";
+    orders.forEach(order=>{
+      const card=document.createElement("div");
+      card.className="order-card";
+      const items=(order.items||[]).map(i=>`${escapeHtml(i.name||"Item")} × ${Number(i.qty)||1}`).join("<br>");
+      card.innerHTML=`<span class="status-pill">${escapeHtml(order.status||"Pending")}</span>
+        <h3>Order #${escapeHtml(order.orderNo||order.id)}</h3>
+        <p>${items}</p>
+        <p><b>Total:</b> ${formatMoney(order.total||0)}</p>
+        <p><b>Payment:</b> ${escapeHtml(order.method||"")} · ${escapeHtml(order.paymentStatus||"Pending")}</p>
+        <button class="feature-button">Track Order</button>`;
+      card.querySelector("button").onclick=()=>{
+        document.getElementById("trackingOrder").textContent=`Order #${order.orderNo||order.id}`;
+        document.getElementById("trackingEta").textContent=`Current status: ${order.status||"Pending"}`;
+        showAppPage("trackingPage");
+      };
+      box.appendChild(card);
+    });
+  }catch(error){
+    box.innerHTML=`<p>${escapeHtml(friendlyFirebaseError(error))}</p>`;
+  }
+}
+
+async function renderAdminOrders(){
+  const box=document.getElementById("adminOrdersList");
+  if(!box) return;
+  if(!isAdminUser()){box.innerHTML="<p>Admin access denied.</p>";return;}
+  box.innerHTML="<p>Loading customer orders…</p>";
+  try{
+    const snap=await firebaseDb.collection("orders").get();
+    const orders=[];
+    snap.forEach(doc=>orders.push({id:doc.id,ref:doc.ref,...doc.data()}));
+    orders.sort((a,b)=>orderDateValue(b)-orderDateValue(a));
+    if(!orders.length){box.innerHTML="<p>No customer orders yet.</p>";return;}
+    box.innerHTML="";
+    orders.forEach(order=>{
+      const card=document.createElement("div");
+      card.className="order-card";
+      const items=(order.items||[]).map(i=>`${escapeHtml(i.name||"Item")} × ${Number(i.qty)||1}`).join("<br>");
+      card.innerHTML=`<span class="status-pill">${escapeHtml(order.status||"Pending")}</span>
+        <h3>#${escapeHtml(order.orderNo||order.id)}</h3>
+        <p><b>Customer:</b> ${escapeHtml(order.delivery?.name||order.customerEmail||"")}</p>
+        <p><b>Phone:</b> ${escapeHtml(order.delivery?.phone||"")}</p>
+        <p><b>Location:</b> ${escapeHtml(order.delivery?.town||"")} — ${escapeHtml(order.delivery?.address||"")}</p>
+        <p>${items}</p>
+        <p><b>Total:</b> ${formatMoney(order.total||0)}</p>
+        <p><b>Payment:</b> ${escapeHtml(order.method||"")} · ${escapeHtml(order.paymentStatus||"Pending")}</p>
+        <div class="field"><label>Order status</label>
+          <select class="admin-order-status">${["Pending","Confirmed","Processing","Shipped","Delivered","Cancelled"].map(s=>`<option ${s===(order.status||"Pending")?"selected":""}>${s}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>Payment status</label>
+          <select class="admin-payment-status">${["Pending","Paid","Pay on delivery","Refunded"].map(s=>`<option ${s===(order.paymentStatus||"Pending")?"selected":""}>${s}</option>`).join("")}</select>
+        </div>
+        <button class="primary-btn">Update Order</button>`;
+      card.querySelector("button").onclick=async()=>{
+        try{
+          await order.ref.update({
+            status:card.querySelector(".admin-order-status").value,
+            paymentStatus:card.querySelector(".admin-payment-status").value,
+            updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+          });
+          alert("Order updated.");
+          renderAdminOrders();
+        }catch(error){alert(friendlyFirebaseError(error));}
+      };
+      box.appendChild(card);
+    });
+  }catch(error){
+    box.innerHTML=`<p>${escapeHtml(friendlyFirebaseError(error))}</p>`;
+  }
+}
+
+document.getElementById("openOrders").onclick=()=>{
+  showFeaturePage("ordersPage");
+  renderCustomerOrders();
+};
+
 document.querySelectorAll(".order-card .feature-button").forEach(btn=>{
   if(btn.textContent.includes("Track")) btn.onclick=()=>showAppPage("trackingPage");
 });
